@@ -46,7 +46,7 @@ nav{background:var(--az);height:64px;display:flex;align-items:center;justify-con
 .hero-vw{position:absolute;inset:0;z-index:0;overflow:hidden}
 .hero-vw iframe{width:100%;height:100%;opacity:.35;pointer-events:none;border:none}
 .hero-ov{position:absolute;inset:0;background:linear-gradient(to top,var(--az) 0%,rgba(13,37,69,.55) 55%,rgba(13,37,69,.15) 100%);z-index:1}
-.hero-c{position:relative;z-index:2;padding:44px 5% 48px;max-width:800px}
+.hero-c{position:relative;z-index:2;padding:90px 5% 48px;max-width:800px}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(212,175,55,.15);border:1px solid var(--do2);color:var(--do2);font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:18px}
 .hero h1{font-family:'Barlow Condensed',sans-serif;font-size:clamp(2rem,5.5vw,3.8rem);font-weight:900;text-transform:uppercase;color:var(--bl);line-height:1.05;margin-bottom:14px}
 .hero h1 em{font-style:normal;color:var(--do2)}
@@ -332,6 +332,7 @@ footer strong{color:rgba(255,255,255,.68)}
     <li><a href="#seg">Seguridad</a></li>
     <li><a href="#buzon">Buzón</a></li>
     <li><a href="#ct">Contacto</a></li>
+    <li><a href="#" onclick="openAdminLogin();return false;" title="Acceso Privado" style="font-size:.85rem;opacity:.55;">🔒</a></li>
   </ul>
 </nav>
 
@@ -547,7 +548,9 @@ footer strong{color:rgba(255,255,255,.68)}
   <div class="adm-header">
     <h2>🏅 Panel de sugerencias — Beccacece Hnos</h2>
     <div style="display:flex;gap:10px;align-items:center">
-      <button class="adm-export" onclick="exportarCSV()">⬇️ Exportar CSV</button>
+      <button class="adm-export" onclick="exportarCSV()">⬇️ CSV</button>
+      <button class="adm-export" onclick="exportarExcel()">📊 Excel</button>
+      <button class="adm-export" onclick="exportarPDF()">🖨️ PDF</button>
       <button class="adm-close" onclick="closeAdminPanel()">✕ Cerrar</button>
     </div>
   </div>
@@ -781,7 +784,7 @@ const PILARES = [
   {n:'Gente',     res:70.0, ae:75.0, umb:70, cls:'bar-ok',   meta:'75%', tip:'Focos: Cultura · Reclutamiento · Capacitación · Clima'},
   {n:'Gestión',   res:61.1, ae:65.6, umb:60, cls:'bar-ok',   meta:'70%', tip:'Focos: VPlanner · OPlanner · Herramientas análisis'},
   {n:'Entrega',   res:60.0, ae:71.4, umb:60, cls:'bar-ok',   meta:'70%', tip:'Focos: OTIF · PAC · Nivel de servicio'},
-  {n:'Flota',     res:64.0, ae:66.7, umb:60, cls:'bar-good', meta:'70%', tip:'Focos: Mantenimiento preventivo · Telemetría'},
+  {n:'Flota',     res:64.0, ae:66.7, umb:60, cls:'bar-ok',   meta:'70%', tip:'Focos: Mantenimiento preventivo · Telemetría'},
   {n:'Planeamiento',res:61.2,ae:61.2,umb:60, cls:'bar-ok',   meta:'68%', tip:'Focos: Período crítico · Pronóstico · Enrutamiento'},
 ];
 document.getElementById('pilares').innerHTML = `
@@ -890,15 +893,13 @@ const SUPA_KEY  = 'sb_publishable_x-A8XE2YF1Ju1kYtnUGGYw_z9c1fOwT'; // anon/publ
 const TABLE     = 'sugerencias';
 
 async function supaFetch(method, path, body) {
-  const opts = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY,
-      'Prefer': method === 'POST' ? 'return=representation' : ''
-    }
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': SUPA_KEY,
+    'Authorization': 'Bearer ' + SUPA_KEY
   };
+  if (method === 'POST') headers['Prefer'] = 'return=minimal';
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(SUPA_URL + '/rest/v1/' + path, opts);
   if (!r.ok) throw new Error(await r.text());
@@ -1171,6 +1172,33 @@ async function exportarCSV() {
   } catch(e) {
     alert('Error al exportar.'); console.error(e);
   }
+}
+
+async function exportarExcel() {
+  try {
+    const arr = await supaFetch('GET', TABLE + '?select=*&order=created_at.desc');
+    if (!arr.length) { alert('No hay sugerencias para exportar.'); return; }
+    const rows = [['ID','Fecha','Categoría','Urgencia','Urgencia Valor','Estado','Mensaje']];
+    arr.forEach(s => rows.push([
+      s.id,
+      new Date(s.created_at).toLocaleString('es-AR'),
+      s.cat, s.urg, s.urg_val, s.mood, s.msg
+    ]));
+    // Generar XLS como TSV con extensión .xls (compatible con Excel)
+    const tsv  = rows.map(r => r.join('\t')).join('\r\n');
+    const blob = new Blob(['\ufeff' + tsv], {type:'application/vnd.ms-excel;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url;
+    a.download = 'sugerencias_beccacece_' + new Date().toISOString().slice(0,10) + '.xls';
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Error al exportar Excel.'); console.error(e);
+  }
+}
+
+function exportarPDF() {
+  // Estilo de impresión: se aplica via @media print en CSS
+  window.print();
 }
 
 
